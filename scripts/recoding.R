@@ -19,7 +19,7 @@ df_with_regions <- df %>% left_join(region,by =c ("province"="Name"))
 df_for_recoding<- df_with_regions %>% rename_at("Region..name.",function(x){x<-"region"})
 
 
-# recoding ----------------------------------------------------------------
+# variables ----------------------------------------------------------------
 
 unsafe_shelter <- c("tent","makeshift", "collective_centre","open_space","damaged_house",
                     "unfinished")
@@ -28,6 +28,9 @@ unprod_hoh <- df_for_recoding[,c("male_less_1", "female_less_1", "male_1_4","fem
 "male_5_17","female_5_17","male_60_over","female_60_over")]
 
 hh_charity <- df_for_recoding [,df_for_recoding %>% select(starts_with("cash_flow.")) %>% colnames()]
+
+
+# composite indicators ----------------------------------------------------
 
 df_recoded <- df_for_recoding %>% mutate(
   i.aid_received_same = if_else(received_aid_mark == "yes" & received_aid_mark_2 == "yes","yes",

@@ -2,9 +2,12 @@ rm(list = ls())
 # library -----------------------------------------------------------------
 library(dplyr)
 library(butteR)
+library(tidyr)
 library(stringr)
 library(srvyr)
 library(survey)
+library(matrixStats)
+source("scripts/function/utils.R")
 
 type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement")[3]
 
@@ -195,6 +198,48 @@ basic_analysis_region_and_received_aid_mark2<-butteR::mean_prop_working(design =
 basic_analysis_region_and_main_modality<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                  aggregation_level = c("region","i.main_modality"))
 
+# data_merge --------------------------------------------------------------
+
+select_one <- c("priority","no_shelter","heating_coping")
+
+select_multiple <- c("shelter_concerns","shelter_repairs","shelter_needs_bad","nfi_items","nfi_needs_bad",
+                     "debt_pay_how","debt_not_pay","aid_items","trade_items_which","cash_spend_how",
+                     "cash_challenge","vendor_challenge_what","distribution_challenge","challenge_type")
+
+cols_multi2 <- as.character()
+for (i in select_multiple) {
+  
+  cols_multi <- data_for_analysis %>% select(starts_with(paste0(i,"."))) %>% colnames() %>% dput
+  cols_multi2 <- c(cols_multi,cols_multi2)
+}
+cols_to_analyze2 <- c(cols_multi2,select_one)
+
+data_merge_basic_analysis_strata_idp<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze2,
+                                                                aggregation_level = "strata_idp") 
+data_merge_basic_analysis_overall<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze2) %>% 
+  mutate(strata_idp = "overall")
+
+data_merge_basic_analysis1 <- list()
+cols_for_subset <- c(select_multiple,select_one)
+
+for (i in cols_for_subset) {
+  print(i)
+  basic_analysis_sub <- data_merge_basic_analysis_overall %>% select(starts_with(paste0(i)))
+  rank_table <- prepare_rank_table(basic_analysis_sub)
+  top_5 <- rank_table %>% filter(rank_last < 6) %>% select(c("option","value"))
+  data_merge_basic_analysis1[[i]] <- top_5 %>% pivot_wider(names_from = option, values_from = value) %>% sort(decreasing = T)
+  
+}
+data_merge_top5 <- do.call("bind_cols",data_merge_basic_analysis1)
+
+data_merge_col_names <-c("strata_idp" ,data_merge_top5 %>%  colnames() )
+
+top5_overall <- data_merge_basic_analysis_overall[data_merge_col_names]
+top5_strata<- data_merge_basic_analysis_strata_idp[data_merge_col_names]
+
+data_merge_all <- rbind(top5_strata,top5_overall)
+
+
 if (type_of_analysis == "region_and_beneficiaries") {
   write.csv(basic_analysis_region,paste0("outputs/basic_analysis/region_and_beneficiaries/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region.csv"))
   write.csv(basic_analysis_main_modality,paste0("outputs/basic_analysis/region_and_beneficiaries/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_main_modality.csv"))
@@ -204,7 +249,8 @@ if (type_of_analysis == "region_and_beneficiaries") {
   write.csv(basic_analysis_received_aid_mark2,paste0("outputs/basic_analysis/region_and_beneficiaries/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_received_aid_mark2.csv"))
   write.csv(basic_analysis_region_and_received_aid_mark2,paste0("outputs/basic_analysis/region_and_beneficiaries/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region_and_received_aid_mark2.csv"))
   write.csv(basic_analysis_region_and_main_modality,paste0("outputs/basic_analysis/region_and_beneficiaries/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region_and_main_modality.csv"))
-}
+  write.csv(data_merge_all,paste0("outputs/basic_analysis/region_and_beneficiaries/",str_replace_all(Sys.Date(),"-","_"),"_data_merge_region_and_beneficiaries.csv"))
+  }
 
 if (type_of_analysis == "region_and_modality") {
   write.csv(basic_analysis_region,paste0("outputs/basic_analysis/region_and_modality/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region.csv"))
@@ -215,7 +261,9 @@ if (type_of_analysis == "region_and_modality") {
   write.csv(basic_analysis_received_aid_mark2,paste0("outputs/basic_analysis/region_and_modality/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_received_aid_mark2.csv"))
   write.csv(basic_analysis_region_and_received_aid_mark2,paste0("outputs/basic_analysis/region_and_modality/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region_and_received_aid_mark2.csv"))
   write.csv(basic_analysis_region_and_main_modality,paste0("outputs/basic_analysis/region_and_modality/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region_and_main_modality.csv"))
-}
+  write.csv(data_merge_all,paste0("outputs/basic_analysis/region_and_modality/",str_replace_all(Sys.Date(),"-","_"),"_data_merge_region_and_main_modality.csv"))
+
+  }
 
 if (type_of_analysis == "displacement") {
   write.csv(basic_analysis_region,paste0("outputs/basic_analysis/displacement/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region.csv"))
@@ -226,4 +274,6 @@ if (type_of_analysis == "displacement") {
   write.csv(basic_analysis_received_aid_mark2,paste0("outputs/basic_analysis/displacement/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_received_aid_mark2.csv"))
   write.csv(basic_analysis_region_and_received_aid_mark2,paste0("outputs/basic_analysis/displacement/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region_and_received_aid_mark2.csv"))
   write.csv(basic_analysis_region_and_main_modality,paste0("outputs/basic_analysis/displacement/",str_replace_all(Sys.Date(),"-","_"),"_basic_analysis_region_and_main_modality.csv"))
-}
+  write.csv(data_merge_all,paste0("outputs/basic_analysis/displacement/",str_replace_all(Sys.Date(),"-","_"),"_data_merge_displacement.csv"))
+  
+  }

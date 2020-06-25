@@ -12,6 +12,10 @@ library(survey)
 df <- read.csv("inputs/clean_dataset/tool1/cleaned_data.csv",na.strings = c(""," ",NA),stringsAsFactors = F) %>% 
   dplyr::filter(!is.na(received_aid_mark_2)) %>% dplyr::filter(consent == "yes") 
 
+response_rate<-get_na_response_rates(df) %>% mutate(
+  response_rate = nrow(df) - num_non_response
+)
+
 region <-read.csv("dap/unhcr_hh/Region.csv",na.strings = c(""," ",NA),stringsAsFactors = F) %>% 
   dplyr::select(c("Name","Region..name.")) #region data 
 
@@ -20,6 +24,11 @@ df_for_recoding<- df_with_regions %>% rename_at("Region..name.",function(x){x<-"
 
 
 # variables ----------------------------------------------------------------
+
+aid_spent_total <- df_for_recoding[,c("aid_spent_food","aid_spent_nfi", "aid_spent_heating",
+                     "aid_spent_rent", "aid_spent_shelter","aid_spent_health",
+                     "aid_spent_transport",  "aid_spent_fuel",  "aid_spent_edu",
+                     "aid_spent_savings", "aid_spent_debt", "aid_spent_other")]
 
 unsafe_shelter <- c("tent","makeshift", "collective_centre","open_space","damaged_house",
                     "unfinished")
@@ -33,6 +42,7 @@ hh_charity <- df_for_recoding [,df_for_recoding %>% select(starts_with("cash_flo
 # composite indicators ----------------------------------------------------
 
 df_recoded <- df_for_recoding %>% mutate(
+  i.aid_spent_total= rowSums(aid_spent_total,na.rm = T),
   i.aid_received_same = if_else(received_aid_mark == "yes" & received_aid_mark_2 == "yes","yes",
                                if_else(received_aid_mark == "yes" & received_aid_mark_2 == "no","no",NULL, NULL)),
   i.age_hoh = if_else(resp_hoh == "yes", resp_age ,hoh_age,NULL),
@@ -66,13 +76,20 @@ df_recoded <- df_for_recoding %>% mutate(
   i.special_idp_report = if_else(area_origin == "yes" & idp_returnee == "yes" & returnee == "no","yes","no",NULL),
   i.returness_report = if_else(area_origin == "yes" & idp_returnee == "yes" & returnee == "yes","yes","no",NULL),
   i.refugee_report = if_else(area_origin == "no" &  refugee == "yes","yes","no",NULL)) %>% mutate(
-  i.dep_ratio_8_or_more = i.prod_hoh/i.unprod_hoh,
+  i.dep_ratio_8_or_more = i.unprod_hoh/i.prod_hoh,
   i.displace_report = if_else(received_aid_mark_2 == "yes" & i.host_report == "yes","host",
                               if_else(received_aid_mark_2 == "yes" & i.idp_report == "yes","idp",
                                       if_else(received_aid_mark_2 == "yes" & i.special_idp_report == "yes","special_idp",
                                               if_else(received_aid_mark_2 == "yes" & i.returness_report == "yes","returnee",
                                                       if_else(received_aid_mark_2 == "yes" & i.refugee_report == "yes","refugee","non_ben",NULL))))),
-  i.displacement_same = if_else(list_displacement == i.displace_report , "yes","no",NULL),
+  
+  i.list_disp_mod = if_else(received_aid_mark == "yes" & list_displacement == "host","host",
+                              if_else(received_aid_mark == "yes" & list_displacement == "idp","idp",
+                                      if_else(received_aid_mark == "yes" & list_displacement == "special_idp","special_idp",
+                                              if_else(received_aid_mark == "yes" & list_displacement == "unknown","unknown",
+                                              if_else(received_aid_mark == "yes" & list_displacement == "returnee","returnee",
+                                                      if_else(received_aid_mark == "yes" & list_displacement == "refugee","refugee","non_ben",NULL)))))),
+  
   i.elderly_hoh = if_else(i.age_hoh > 59, "yes","no",NULL),
   i.female_child_hoh_adult = if_else(hoh_female_or_child == "yes" & male_18_59 == 0 & cash_flow.remittances == 0,"yes","no",NULL),
   i.shelter_needs_met_total = if_else(shelter_needs_met == "completely_met" | shelter_needs_met_non_bene == "completely_met" , "completely_met",
@@ -80,6 +97,12 @@ df_recoded <- df_for_recoding %>% mutate(
                                               if_else(shelter_needs_met == "mostly_met" | shelter_needs_met_non_bene == "mostly_met" , "mostly_met",
                                                       if_else(shelter_needs_met == "partially_met" | shelter_needs_met_non_bene == "partially_met" , "partially_met",
                                                               if_else(shelter_needs_met == "not_met" | shelter_needs_met_non_bene == "not_met" , "not_met","ERROR",NULL))))),
+  
+  i.nfi_needs_met_total = if_else(nfi_needs_met == "completely_met" | nfi_needs_met_non_bene == "completely_met" , "completely_met",
+                                      if_else(nfi_needs_met == "almost_met" | nfi_needs_met_non_bene == "almost_met" , "almost_met",
+                                              if_else(nfi_needs_met == "mostly_met" | nfi_needs_met_non_bene == "mostly_met" , "mostly_met",
+                                                      if_else(nfi_needs_met == "partially_met" | nfi_needs_met_non_bene == "partially_met" , "partially_met",
+                                                              if_else(nfi_needs_met == "not_met" | nfi_needs_met_non_bene == "not_met" , "not_met","ERROR",NULL))))),
   i.main_modality= if_else(modality == "unconditional_cash", "unconditional_cash",
                            if_else(modality == "conditional_cash","conditional_cash" ,
                                    if_else(modality == "in_kind","in_kind",
@@ -89,20 +112,21 @@ df_recoded <- df_for_recoding %>% mutate(
                                                                    if_else(modality == "cash_in_kind" & modality_maj == "in_kind","in_kind",
                                                                            if_else(modality == "cash_in_kind" & modality_maj == "voucher","voucher", "error",NULL))))))))
   ) %>%  mutate(
+  i.displacement_same = if_else(i.list_disp_mod == i.displace_report , "yes","no",NULL),
   i.elderly_disabled_hoh = if_else(i.elderly_hoh == "yes" & i.disabled_hoh == "yes","yes","no",NULL),
   i.modality_same = if_else(i.main_modality == received_aid_type,"yes","no",NULL),
-  i.aid_perc_food = if_else(aid_currency == "usd",aid_spent_food/cash_usd,aid_spent_food/cash_afs,NULL),
-  i.aid_perc_nfi =  if_else(aid_currency == "usd",aid_spent_nfi/cash_usd,aid_spent_nfi/cash_afs,NULL),
-  i.aid_perc_heating =  if_else(aid_currency == "usd",aid_spent_heating/cash_usd,aid_spent_heating/cash_afs,NULL),
-  i.aid_perc_rent =  if_else(aid_currency == "usd",aid_spent_rent/cash_usd,aid_spent_rent/cash_afs,NULL),
-  i.aid_perc_shelter =  if_else(aid_currency == "usd",aid_spent_shelter/cash_usd,aid_spent_shelter/cash_afs,NULL),
-  i.aid_perc_health= if_else(aid_currency == "usd",aid_spent_health/cash_usd,aid_spent_health/cash_afs,NULL),
-  i.aid_perc_transport= if_else(aid_currency == "usd",aid_spent_transport/cash_usd,aid_spent_transport/cash_afs,NULL),
-  i.aid_perc_fuel= if_else(aid_currency == "usd",aid_spent_fuel/cash_usd,aid_spent_fuel/cash_afs,NULL),
-  i.aid_perc_edu =  if_else(aid_currency == "usd",aid_spent_edu/cash_usd,aid_spent_edu/cash_afs,NULL),
-  i.aid_perc_savings = if_else(aid_currency == "usd",aid_spent_savings/cash_usd,aid_spent_savings/cash_afs,NULL),
-  i.aid_perc_debt=  if_else(aid_currency == "usd",aid_spent_debt/cash_usd,aid_spent_debt/cash_afs,NULL),
-  i.aid_perc_other= if_else(aid_currency == "usd",aid_spent_other/cash_usd,aid_spent_other/cash_afs,NULL),
+  i.aid_perc_food = aid_spent_food/i.aid_spent_total,
+  i.aid_perc_nfi =  aid_spent_nfi/i.aid_spent_total,
+  i.aid_perc_heating =  aid_spent_heating/i.aid_spent_total,
+  i.aid_perc_rent =  aid_spent_rent/i.aid_spent_total,
+  i.aid_perc_shelter =  aid_spent_shelter/i.aid_spent_total,
+  i.aid_perc_health= aid_spent_health/i.aid_spent_total,
+  i.aid_perc_transport= aid_spent_transport/i.aid_spent_total,
+  i.aid_perc_fuel= aid_spent_fuel/i.aid_spent_total,
+  i.aid_perc_edu =  aid_spent_edu/i.aid_spent_total,
+  i.aid_perc_savings = aid_spent_savings/i.aid_spent_total,
+  i.aid_perc_debt= aid_spent_debt/i.aid_spent_total,
+  i.aid_perc_other= aid_spent_other/i.aid_spent_total,
   i.vulnerable_blanket = if_else(i.elderly_hoh == "yes" | i.disabled_hoh == "yes" | i.female_child_hoh_adult == "yes" |
                                    tazkera == "none" | i.dep_ratio_8_or_more > .8,"yes","no",NULL)
   )
@@ -110,3 +134,4 @@ df_recoded <- df_for_recoding %>% mutate(
 
 write.csv(df_recoded,paste0("outputs/recoding/","composite_indicators.csv"))
 write.csv(df_recoded,paste0("outputs/recoding/",str_replace_all(Sys.Date(),"-","_"),"_composite_indicators.csv"))
+write.csv(response_rate,paste0("outputs/basic_analysis/",str_replace_all(Sys.Date(),"-","_"),"_response_rate.csv"))

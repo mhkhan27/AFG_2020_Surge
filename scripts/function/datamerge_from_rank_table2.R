@@ -18,21 +18,21 @@ if(rank_table%>% filter(rank_last==rank_n) %>% pull(num_tie)>1){
     result[["ranks_filtered"]]<-rank_table%>% filter(rank_last<=rank_n)
     result[["tied_records"]]<- tie_records
     # print(paste("top",rank_n, "in", sm,"were tied", sep = " "))
-    interactive_title<-paste0("You need to remove",number_records_gt_rank, "record(s)", "from the tie_records table")
-    tie_break_remove <- select.list(tie_records$option,multiple = T, title = interactive_title)
+    # interactive_title<-paste0("You need to remove",number_records_gt_rank, "record(s)", "from the tie_records table")
+    # tie_break_remove <- select.list(tie_records$option,multiple = T, title = interactive_title)
     
-    if(!is.null(tie_break_remove)){
-      tie<-result$ranks_with_ties %>%
-        group_by(value) %>%
-        filter(!option%in% tie_break_remove) %>% ungroup() %>%
-        mutate(rank_final= 1:n()) %>% filter(rank_final<=rank_n)
-      result[["ranks_long_for_dm"]]<-tie
-    }else{
+    # if(!is.null(tie_break_remove)){
+    #   tie<-result$ranks_with_ties %>%
+    #     group_by(value) %>%
+    #     filter(!option%in% tie_break_remove) %>% ungroup() %>%
+    #     mutate(rank_final= 1:n()) %>% filter(rank_final<=rank_n)
+    #   result[["ranks_long_for_dm"]]<-tie
+    # }else{
       result[["ranks_long_for_dm"]]<-rank_table%>%
         filter(rank_last<=rank_n) %>%
         rename(rank_final="rank_last")
       
-    }
+    # }
     
     
     results_long<-result$ranks_long_for_dm %>%

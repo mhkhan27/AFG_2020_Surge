@@ -10,7 +10,7 @@ library(matrixStats)
 source("scripts/function/utils.R")
 source("scripts/function/datamerge_from_rank_table2.R")
 
-type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement")[1]
+type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[4]
 
 # read_data ---------------------------------------------------------------
 
@@ -129,6 +129,32 @@ sf_with_weights <- sf_with_weights_for_write %>% select(c("list_displacement","s
 
 data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 }
+# displacement2  -----------------------------------------------------------
+
+if ( type_of_analysis == "displacement_all") {
+  
+  pop <- population %>% dplyr::filter(type == "population_group")
+  
+  pop <- pop%>% 
+    mutate(
+      pop_global=sum(population))
+  
+  sf_pop<- "population"
+  
+  df_for_grop_analysis <-  df_with_regions 
+  
+  sf_with_weights_for_write <- df_for_grop_analysis %>% 
+    group_by(list_displacement) %>% 
+    summarise(sample_strata_num=n()) %>% 
+    right_join(pop, by=c("list_displacement" = "strata")) %>% as.data.frame() %>% mutate(
+      sample_global = sum(sample_strata_num),
+      survey_weight = (!!sym(sf_pop)/pop_global)/(sample_strata_num/sample_global)) %>% 
+    select(c("list_displacement","sample_strata_num","population",	"pop_global",	"sample_global","survey_weight"))
+  
+  sf_with_weights <- sf_with_weights_for_write %>% select(c("list_displacement","survey_weight"))
+  
+  data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
+}
 write.csv(data_for_analysis,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_working_data.csv")))
 write.csv(sf_with_weights_for_write,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_survey_weights.csv")))
 # colums to analyze -------------------------------------------------------
@@ -191,6 +217,7 @@ dfsvy$variables$i.main_modality <- dfsvy$variables$i.main_modality  %>% as.facto
 dfsvy$variables$received_aid_mark_2 <- dfsvy$variables$received_aid_mark_2  %>% as.factor()
 dfsvy$variables$region <- dfsvy$variables$region
 
+if (type_of_analysis != "displacement_all") {
 
 basic_analysis_region<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                  aggregation_level = "region" )
@@ -209,6 +236,18 @@ basic_analysis_region_and_received_aid_mark2<-butteR::mean_prop_working(design =
 basic_analysis_region_and_main_modality<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                  aggregation_level = c("region","i.main_modality"))
 
+}
+
+if (type_of_analysis == "displacement_all") {
+  basic_analysis_received_aid_mark_2<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                                aggregation_level = "received_aid_mark_2" )
+  basic_analysis_displacement_overall<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze) %>% mutate(
+    strata = "overall")
+  basic_analysis_gender_hoh <-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                        aggregation_level = "i.gender_hoh" )
+  basic_analysis_vulnerable_blanket<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                               aggregation_level = "i.vulnerable_blanket" )
+}
 
 
 # write_csv ---------------------------------------------------------------
@@ -225,18 +264,28 @@ basic_analysis_region_and_main_modality<-butteR::mean_prop_working(design = dfsv
 
 # data_merge --------------------------------------------------------------
 
+if (type_of_analysis != "displacement_all") {
 mean_table <- c("basic_analysis_region","basic_analysis_main_modality","basic_analysis_displacement_report",
                 "basic_analysis_gender_hoh","basic_analysis_vulnerable_blanket","basic_analysis_received_aid_mark2",
                 "basic_analysis_region_and_received_aid_mark2","basic_analysis_region_and_main_modality")
+}
+
+if (type_of_analysis == "displacement_all") {
+  
+  mean_table <- c("basic_analysis_received_aid_mark_2","basic_analysis_displacement_overall",
+                  "basic_analysis_gender_hoh","basic_analysis_vulnerable_blanket")
+}
 for (v in mean_table) {
   
 strata_col <- if_else(v == "basic_analysis_region","region",
+                    if_else(v =="basic_analysis_received_aid_mark_2","received_aid_mark_2",
+                            if_else(v == "basic_analysis_displacement_overall","strata",
                       if_else(v =="basic_analysis_main_modality","i.main_modality",
                               if_else(v =="basic_analysis_received_aid_mark2","received_aid_mark_2",
                               if_else(v =="basic_analysis_displacement_report","i.displace_report",
                                       if_else(v =="basic_analysis_gender_hoh","i.gender_hoh",
                                               if_else(v =="basic_analysis_vulnerable_blanket","i.vulnerable_blanket",NULL
-                                                     ))))))
+                                                     ))))))))
 
 if(v == "basic_analysis_region_and_received_aid_mark2") {
   strata_col <- "region_and_received_aid_mark2"
@@ -318,3 +367,11 @@ for (x in names(data_merge)) {
 
 write.csv(data_merge2,paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_data_merge_",v,".csv"),na="")
 }
+
+# if (type_of_analysis == "dispalacement_all") {
+#   overall <-read.csv("outputs/basic_analysis/displacement_all/2020_06_25_data_merge_basic_analysis_displacement_overall.csv")
+#   displacement_report <-read.csv("outputs/basic_analysis/displacement_all/2020_06_25_data_merge_basic_analysis_displacement_report2.csv")
+#   
+#   a <- data.frame(a = colnames(overall) ,
+#   tf =colnames(overall) %in% colnames(displacement_report))
+# }

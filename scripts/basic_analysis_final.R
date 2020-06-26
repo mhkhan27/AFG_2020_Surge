@@ -10,7 +10,7 @@ library(matrixStats)
 source("scripts/function/utils.R")
 source("scripts/function/datamerge_from_rank_table2.R")
 
-type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[4]
+type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[3]
 
 # read_data ---------------------------------------------------------------
 
@@ -118,14 +118,14 @@ sf_pop<- "population"
 df_for_grop_analysis <-  df_with_regions %>% filter(received_aid_mark_2 != "no")
 
 sf_with_weights_for_write <- df_for_grop_analysis %>% 
-  group_by(list_displacement) %>% 
+  group_by(i.displace_report) %>% 
   summarise(sample_strata_num=n()) %>% 
-  right_join(pop, by=c("list_displacement" = "strata")) %>% as.data.frame() %>% mutate(
+  right_join(pop, by=c("i.displace_report" = "strata")) %>% as.data.frame() %>% mutate(
     sample_global = sum(sample_strata_num),
     survey_weight = (!!sym(sf_pop)/pop_global)/(sample_strata_num/sample_global)) %>% 
-      select(c("list_displacement","sample_strata_num","population",	"pop_global",	"sample_global","survey_weight"))
+      select(c("i.displace_report","sample_strata_num","population",	"pop_global",	"sample_global","survey_weight"))
 
-sf_with_weights <- sf_with_weights_for_write %>% select(c("list_displacement","survey_weight"))
+sf_with_weights <- sf_with_weights_for_write %>% select(c("i.displace_report","survey_weight"))
 
 data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 }
@@ -133,7 +133,7 @@ data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% fil
 
 if ( type_of_analysis == "displacement_all") {
   
-  pop <- population %>% dplyr::filter(type == "population_group")
+  pop <- population %>% dplyr::filter(type == "all_pop")
   
   pop <- pop%>% 
     mutate(
@@ -144,14 +144,14 @@ if ( type_of_analysis == "displacement_all") {
   df_for_grop_analysis <-  df_with_regions 
   
   sf_with_weights_for_write <- df_for_grop_analysis %>% 
-    group_by(list_displacement) %>% 
+    group_by(i.displace_report) %>% 
     summarise(sample_strata_num=n()) %>% 
-    right_join(pop, by=c("list_displacement" = "strata")) %>% as.data.frame() %>% mutate(
+    right_join(pop, by=c("i.displace_report" = "strata")) %>% as.data.frame() %>% mutate(
       sample_global = sum(sample_strata_num),
       survey_weight = (!!sym(sf_pop)/pop_global)/(sample_strata_num/sample_global)) %>% 
-    select(c("list_displacement","sample_strata_num","population",	"pop_global",	"sample_global","survey_weight"))
+    select(c("i.displace_report","sample_strata_num","population",	"pop_global",	"sample_global","survey_weight"))
   
-  sf_with_weights <- sf_with_weights_for_write %>% select(c("list_displacement","survey_weight"))
+  sf_with_weights <- sf_with_weights_for_write %>% select(c("i.displace_report","survey_weight"))
   
   data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 }
@@ -239,6 +239,8 @@ basic_analysis_region_and_main_modality<-butteR::mean_prop_working(design = dfsv
 }
 
 if (type_of_analysis == "displacement_all") {
+  basic_analysis_region<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                   aggregation_level = "region")
   basic_analysis_received_aid_mark_2<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                                 aggregation_level = "received_aid_mark_2" )
   basic_analysis_displacement_overall<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze) %>% mutate(
@@ -272,8 +274,9 @@ mean_table <- c("basic_analysis_region","basic_analysis_main_modality","basic_an
 
 if (type_of_analysis == "displacement_all") {
   
-  mean_table <- c("basic_analysis_received_aid_mark_2","basic_analysis_displacement_overall",
-                  "basic_analysis_gender_hoh","basic_analysis_vulnerable_blanket")
+mean_table <- c("basic_analysis_received_aid_mark_2","basic_analysis_displacement_overall",
+                  "basic_analysis_gender_hoh","basic_analysis_vulnerable_blanket",
+                  "basic_analysis_region")
 }
 for (v in mean_table) {
   

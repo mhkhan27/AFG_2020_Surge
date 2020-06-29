@@ -11,7 +11,7 @@ library(matrixStats)
 source("scripts/function/utils.R")
 source("scripts/function/datamerge_from_rank_table2.R")
 
-type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[3]
+type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[2]
 
 # read_data ---------------------------------------------------------------
 
@@ -158,6 +158,9 @@ if ( type_of_analysis == "displacement_all") {
 }
 write.csv(data_for_analysis,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_working_data.csv")))
 write.csv(sf_with_weights_for_write,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_survey_weights.csv")))
+
+data_for_analysis$i.aid_month <- format(as.Date(data_for_analysis$aid_month), "%Y-%m")
+
 # colums to analyze -------------------------------------------------------
 
 cols_not_to_ana<- c("X", "start", "end", "date", "deviceid", "end_survey", "audit", 
@@ -236,6 +239,8 @@ basic_analysis_region_and_received_aid_mark2<-butteR::mean_prop_working(design =
                                                  aggregation_level = c("region","received_aid_mark_2"))
 basic_analysis_region_and_main_modality<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                  aggregation_level = c("region","i.main_modality"))
+basic_analysis_aid_month<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                             aggregation_level = "i.aid_month" )
 
 }
 
@@ -250,6 +255,8 @@ if (type_of_analysis == "displacement_all") {
                                                         aggregation_level = "i.gender_hoh" )
   basic_analysis_vulnerable_blanket<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
                                                                aggregation_level = "i.vulnerable_blanket" )
+  basic_analysis_aid_month<-butteR::mean_prop_working(design = dfsvy,list_of_variables = cols_to_analyze,
+                                                      aggregation_level = "i.aid_month" )
 }
 
 
@@ -270,18 +277,20 @@ if (type_of_analysis == "displacement_all") {
 if (type_of_analysis != "displacement_all") {
 mean_table <- c("basic_analysis_region","basic_analysis_main_modality","basic_analysis_displacement_report",
                 "basic_analysis_gender_hoh","basic_analysis_vulnerable_blanket","basic_analysis_received_aid_mark2",
-                "basic_analysis_region_and_received_aid_mark2","basic_analysis_region_and_main_modality")
+                "basic_analysis_region_and_received_aid_mark2","basic_analysis_region_and_main_modality",
+                "basic_analysis_aid_month")
 }
 
 if (type_of_analysis == "displacement_all") {
   
 mean_table <- c("basic_analysis_received_aid_mark_2","basic_analysis_displacement_overall",
                   "basic_analysis_gender_hoh","basic_analysis_vulnerable_blanket",
-                  "basic_analysis_region")
+                  "basic_analysis_region","basic_analysis_aid_month")
 }
 for (v in mean_table) {
   
 strata_col <- if_else(v == "basic_analysis_region","region",
+                      if_else(v == "basic_analysis_aid_month","i.aid_month",
                     if_else(v =="basic_analysis_received_aid_mark_2","received_aid_mark_2",
                             if_else(v == "basic_analysis_displacement_overall","strata",
                       if_else(v =="basic_analysis_main_modality","i.main_modality",
@@ -289,7 +298,7 @@ strata_col <- if_else(v == "basic_analysis_region","region",
                               if_else(v =="basic_analysis_displacement_report","i.displace_report",
                                       if_else(v =="basic_analysis_gender_hoh","i.gender_hoh",
                                               if_else(v =="basic_analysis_vulnerable_blanket","i.vulnerable_blanket",NULL
-                                                     ))))))))
+                                                     )))))))))
 
 if(v == "basic_analysis_region_and_received_aid_mark2") {
   strata_col <- "region_and_received_aid_mark2"

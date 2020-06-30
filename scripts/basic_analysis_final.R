@@ -11,7 +11,7 @@ library(matrixStats)
 source("scripts/function/utils.R")
 source("scripts/function/datamerge_from_rank_table2.R")
 
-type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[2]
+type_of_analysis <- c("region_and_beneficiaries","region_and_modality","displacement","displacement_all")[3]
 
 # read_data ---------------------------------------------------------------
 
@@ -60,7 +60,9 @@ sf_with_weights_for_write<- df_for_grop_analysis %>%
 
 sf_with_weights <- sf_with_weights_for_write %>%   select(c("strata.region_recieved_aid","survey_weight"))
 
-data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights)
+data_for_analysis_with_all_weights <- df_for_grop_analysis %>% left_join(sf_with_weights)
+
+data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 
 }
 
@@ -98,6 +100,8 @@ sf_with_weights_for_write<- df_for_grop_analysis %>%
   
 
  sf_with_weights <- sf_with_weights_for_write %>% select(c("strata.region_and_modality","survey_weight"))
+ 
+ data_for_analysis_with_all_weights <- df_for_grop_analysis %>% left_join(sf_with_weights)
 
 data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 
@@ -128,6 +132,8 @@ sf_with_weights_for_write <- df_for_grop_analysis %>%
 
 sf_with_weights <- sf_with_weights_for_write %>% select(c("i.displace_report","survey_weight"))
 
+data_for_analysis_with_all_weights <- df_for_grop_analysis %>% left_join(sf_with_weights)
+
 data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 }
 # displacement2  -----------------------------------------------------------
@@ -154,10 +160,12 @@ if ( type_of_analysis == "displacement_all") {
   
   sf_with_weights <- sf_with_weights_for_write %>% select(c("i.displace_report","survey_weight"))
   
+  data_for_analysis_with_all_weights <- df_for_grop_analysis %>% left_join(sf_with_weights)
   data_for_analysis <- df_for_grop_analysis %>% left_join(sf_with_weights) %>% filter(!is.na(survey_weight))
 }
 write.csv(data_for_analysis,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_working_data.csv")))
 write.csv(sf_with_weights_for_write,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_survey_weights.csv")))
+write.csv(data_for_analysis_with_all_weights,paste0(paste0("outputs/basic_analysis/",type_of_analysis,"/",str_replace_all(Sys.Date(),"-","_"),"_working_data_with_all_weights.csv")))
 
 data_for_analysis$i.aid_month <- format(as.Date(data_for_analysis$aid_month), "%Y-%m")
 
